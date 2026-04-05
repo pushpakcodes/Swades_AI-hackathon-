@@ -18,7 +18,7 @@ export function useTranscriptions(sessionId: string) {
     async function fetchTranscriptions() {
       if (!sessionId) return;
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+        const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000";
         const res = await fetch(`${baseUrl}/api/chunks/transcriptions?sessionId=${sessionId}`);
         if (res.ok) {
           const data = await res.json();
@@ -43,7 +43,7 @@ export function useTranscriptions(sessionId: string) {
   const deleteTranscription = async (id: string) => {
     setTranscriptions((prev) => prev.filter((t) => t.id !== id));
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+      const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000";
       await fetch(`${baseUrl}/api/chunks/transcriptions/${id}`, { method: "DELETE" });
     } catch (err) {
       console.error(err);
@@ -53,7 +53,7 @@ export function useTranscriptions(sessionId: string) {
   const clearTranscriptions = async () => {
     setTranscriptions([]);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+      const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000";
       await fetch(`${baseUrl}/api/chunks/transcriptions/session/${sessionId}`, { method: "DELETE" });
     } catch (err) {
       console.error(err);
