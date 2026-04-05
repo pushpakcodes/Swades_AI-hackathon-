@@ -1,0 +1,56 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+export type TranscriptionRecord = {
+  id: string;
+  speaker: string;
+  transcription: string;
+  uploadedAt: string;
+};
+
+export function useTranscriptions(sessionId: string) {
+  const [transcriptions, setTranscriptions] = useState<TranscriptionRecord[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function fetchTranscriptions() {
+      if (!sessionId) return;
+      try {
+        const res = await fetch(`http://localhost:3000/api/chunks/transcriptions?sessionId=${sessionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (active && data.transcriptions) {
+            setTranscriptions(data.transcriptions);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch transcriptions", err);
+      }
+    }
+
+    const timer = setInterval(fetchTranscriptions, 3000); // Poll every 3 seconds
+    fetchTranscriptions();
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [sessionId]);
+
+  const deleteTranscription = async (id: string) => {
+    // Optimistic UI update
+    setTranscriptions((prev) => prev.filter((t) => t.id !== id));
+    
+    try {
+      await fetch(`http://localhost:3000/api/chunks/transcriptions/${id}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.error("Failed to delete transcription", err);
+    }
+  };
+
+  return { transcriptions, deleteTranscription };
+}

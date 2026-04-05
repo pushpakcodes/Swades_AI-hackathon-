@@ -86,7 +86,7 @@ export function useRecorder(options: UseRecorderOptions = {}) {
 
   statusRef.current = status
 
-  const flushChunk = useCallback(() => {
+  const flushChunk = useCallback(async () => {
     if (samplesRef.current.length === 0) return
 
     const totalLen = samplesRef.current.reduce((n, b) => n + b.length, 0)
@@ -100,15 +100,28 @@ export function useRecorder(options: UseRecorderOptions = {}) {
     sampleCountRef.current = 0
 
     const blob = encodeWav(merged, SAMPLE_RATE)
-    const url = URL.createObjectURL(blob)
-    const chunk: WavChunk = {
-      id: crypto.randomUUID(),
-      blob,
-      url,
-      duration: merged.length / SAMPLE_RATE,
-      timestamp: Date.now(),
+    const id = crypto.randomUUID()
+    
+    // Save directly to OPFS
+    try {
+      const root = await navigator.storage.getDirectory()
+      const uploadDir = await root.getDirectoryHandle("uploads", { create: true })
+      const fileHandle = await uploadDir.getFileHandle(`${id}.wav`, { create: true })
+      const writable = await fileHandle.createWritable()
+      await writable.write(blob)
+      await writable.close()
+      
+      const chunk: WavChunk = {
+        id,
+        blob,
+        url: URL.createObjectURL(blob), // keep local reference for UI playback if needed
+        duration: merged.length / SAMPLE_RATE,
+        timestamp: Date.now(),
+      }
+      setChunks((prev) => [...prev, chunk])
+    } catch (e) {
+      console.error("OPFS write failed:", e)
     }
-    setChunks((prev) => [...prev, chunk])
   }, [])
 
   const start = useCallback(async () => {
@@ -137,27 +150,8 @@ export function useRecorder(options: UseRecorderOptions = {}) {
         sampleCountRef.current += resampled.length
 
         if (sampleCountRef.current >= chunkThreshold) {
-          // flush synchronously from the collected buffers
-          const totalLen = samplesRef.current.reduce((n, b) => n + b.length, 0)
-          const merged = new Float32Array(totalLen)
-          let off = 0
-          for (const buf of samplesRef.current) {
-            merged.set(buf, off)
-            off += buf.length
-          }
-          samplesRef.current = []
-          sampleCountRef.current = 0
-
-          const blob = encodeWav(merged, SAMPLE_RATE)
-          const url = URL.createObjectURL(blob)
-          const chunk: WavChunk = {
-            id: crypto.randomUUID(),
-            blob,
-            url,
-            duration: merged.length / SAMPLE_RATE,
-            timestamp: Date.now(),
-          }
-          setChunks((prev) => [...prev, chunk])
+          // offload flushing to avoid blocking audio process node excessively
+          setTimeout(flushChunk, 0)
         }
       }
 

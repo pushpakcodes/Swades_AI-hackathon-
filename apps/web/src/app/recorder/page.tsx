@@ -13,6 +13,7 @@ import {
 } from "@my-better-t-app/ui/components/card"
 import { LiveWaveform } from "@/components/ui/live-waveform"
 import { useRecorder, type WavChunk } from "@/hooks/use-recorder"
+import { TranscriptionBoard } from "@/components/transcription-board"
 
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60)
@@ -194,6 +195,8 @@ export default function RecorderPage() {
           </CardContent>
         </Card>
       )}
+
+      <TranscriptionBoard sessionId="session-current" />
     </div>
   )
 }
