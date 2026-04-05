@@ -78,7 +78,7 @@ function ChunkRow({ chunk, index }: { chunk: WavChunk; index: number }) {
 export default function RecorderPage() {
   const [deviceId] = useState<string | undefined>()
   const { status, start, stop, pause, resume, chunks, elapsed, stream, clearChunks } =
-    useRecorder({ chunkDuration: 5, deviceId })
+    useRecorder({ chunkDuration: 10, deviceId })
 
   const isRecording = status === "recording"
   const isPaused = status === "paused"
@@ -97,7 +97,7 @@ export default function RecorderPage() {
       <Card className="w-full">
         <CardHeader>
           <CardTitle>Recorder</CardTitle>
-          <CardDescription>16 kHz / 16-bit PCM WAV — chunked every 5 s</CardDescription>
+          <CardDescription>16 kHz / 16-bit PCM WAV — chunked every 10 s</CardDescription>
         </CardHeader>
 
         <CardContent className="flex flex-col gap-6">

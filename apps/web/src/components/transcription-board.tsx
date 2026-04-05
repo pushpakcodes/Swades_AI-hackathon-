@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useTranscriptions } from "@/hooks/use-transcriptions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@my-better-t-app/ui/components/card";
 import { Button } from "@my-better-t-app/ui/components/button";
-import { X } from "lucide-react";
+import { X, Trash2 } from "lucide-react";
 
 function stringToColor(str: string) {
   let hash = 0;
@@ -20,7 +20,7 @@ function stringToColor(str: string) {
 }
 
 export function TranscriptionBoard({ sessionId }: { sessionId: string }) {
-  const { transcriptions, deleteTranscription } = useTranscriptions(sessionId);
+  const { transcriptions, deleteTranscription, clearTranscriptions } = useTranscriptions(sessionId);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,16 +30,24 @@ export function TranscriptionBoard({ sessionId }: { sessionId: string }) {
   return (
     <Card className="w-full mt-6 h-96 flex flex-col">
       <CardHeader className="py-4 border-b">
-        <CardTitle className="text-lg flex items-center justify-between">
-          Live Transcription
-          <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-4">
+            Live Transcription
+            <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              Real-time
             </span>
-            Real-time
-          </span>
-        </CardTitle>
+          </CardTitle>
+          {transcriptions.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearTranscriptions} className="text-destructive h-8 px-2 gap-1.5">
+              <Trash2 className="size-3" />
+              Clear all
+            </Button>
+          )}
+        </div>
         <CardDescription>Session ID: {sessionId}</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
@@ -49,25 +57,49 @@ export function TranscriptionBoard({ sessionId }: { sessionId: string }) {
           </div>
         ) : null}
 
-        {transcriptions.map((t) => (
-          <div key={t.id} className="flex flex-col animate-in fade-in slide-in-from-bottom-2 relative group">
-            <span className="text-xs font-semibold mb-1" style={{ color: stringToColor(t.speaker) }}>
-              {t.speaker} <span className="text-[10px] text-muted-foreground ml-2 font-normal">{new Date(t.uploadedAt).toLocaleTimeString()}</span>
-            </span>
-            <div className="bg-muted/40 border p-2.5 rounded-lg text-sm text-foreground shadow-sm relative">
-              {t.transcription}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => deleteTranscription(t.id)}
-                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-                <span className="sr-only">Delete</span>
-              </Button>
+        {transcriptions.map((t, index) => {
+          const parsedLines = t.transcription.split('\n').filter(Boolean).map((line) => {
+            const match = line.match(/^\[(.*?)\]:\s*(.*)$/);
+            if (match) return { speaker: match[1], text: match[2] };
+            return { speaker: t.speaker === "Multiple Speakers" ? "Unknown" : t.speaker, text: line };
+          });
+
+          return (
+            <div key={t.id} className="flex flex-col animate-in fade-in slide-in-from-bottom-2 relative group gap-3 mb-2">
+              {parsedLines.map((lineObj, i) => (
+                <div key={`${t.id}-${i}`} className="flex flex-col relative">
+                  <span className="text-xs font-semibold mb-1 flex items-center gap-2" style={{ color: stringToColor(lineObj.speaker) }}>
+                    <span>{lineObj.speaker}</span>
+                    {i === 0 && (
+                      <>
+                        <span className="text-[10px] text-muted-foreground font-normal border rounded px-1 hidden group-hover:inline-block transition-opacity">
+                          Chunk #{index + 1}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-normal ml-auto">
+                          {new Date(t.uploadedAt).toLocaleTimeString()}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  <div className="bg-muted/40 border p-2.5 rounded-lg text-sm text-foreground shadow-sm relative w-fit min-w-[200px] max-w-[85%] pr-8">
+                    {lineObj.text}
+                    {i === 0 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteTranscription(t.id)}
+                        className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-4 w-4 text-muted-foreground" />
+                        <span className="sr-only">Delete</span>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={bottomRef} className="h-1" />
       </CardContent>
     </Card>

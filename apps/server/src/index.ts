@@ -17,7 +17,7 @@ app.use(
   "/*",
   cors({
     origin: env.CORS_ORIGIN,
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
   }),
 );
 
@@ -55,13 +55,15 @@ app.post("/api/chunks/upload", async (c) => {
         throw new Error("Missing DEEPGRAM_API_KEY");
       }
       const deepgram = createClient(env.DEEPGRAM_API_KEY);
-      
+
       const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
         buffer,
         {
           model: "nova-2",
           smart_format: true,
           diarize: true,
+          punctuate: true,
+          utterances: true,
         }
       );
 
@@ -69,10 +71,36 @@ app.post("/api/chunks/upload", async (c) => {
         console.error("Deepgram Error:", error);
       } else if (result?.results?.channels?.[0]?.alternatives?.[0]) {
         const alt = result.results.channels[0].alternatives[0];
-        finalText = alt.transcript || "";
-        
-        if (alt.words && alt.words.length > 0 && alt.words[0].speaker !== undefined) {
-          finalSpeaker = `user${alt.words[0].speaker}`;
+
+        if (alt.words && alt.words.length > 0) {
+          let currentSpeaker = alt.words[0]?.speaker ?? 0;
+          let currentPhrase = "";
+          const transcriptLines = [];
+
+          for (const word of alt.words) {
+            const wordSpeaker = word.speaker ?? 0;
+            if (wordSpeaker !== currentSpeaker) {
+              transcriptLines.push(`[User ${currentSpeaker + 1}]: ${currentPhrase.trim()}`);
+              currentSpeaker = wordSpeaker;
+              currentPhrase = "";
+            }
+            currentPhrase += word.punctuated_word + " ";
+          }
+
+          // Push the final segment
+          if (currentPhrase.trim()) {
+            transcriptLines.push(`[User ${currentSpeaker + 1}]: ${currentPhrase.trim()}`);
+          }
+
+          if (transcriptLines.length > 1) {
+            finalSpeaker = "Multiple Speakers";
+            finalText = transcriptLines.join("\n");
+          } else {
+            finalSpeaker = `User ${currentSpeaker + 1}`;
+            finalText = currentPhrase.trim();
+          }
+        } else {
+          finalText = alt.transcript || "";
         }
       }
     } catch (err) {
@@ -80,10 +108,10 @@ app.post("/api/chunks/upload", async (c) => {
     }
 
     if (!finalText.trim()) {
-      finalText = "[Silence]";       
+      finalText = "[Silence]";
     }
 
-    const finalTranscription = `[${finalSpeaker}]: ${finalText}`;
+    const finalTranscription = finalSpeaker === "Multiple Speakers" ? finalText : `[${finalSpeaker}]: ${finalText}`;
     console.log("Transcribed:", finalTranscription);
 
     // 3. Ack to DB
@@ -139,11 +167,11 @@ app.post("/api/chunks/reconcile", async (c) => {
 app.get("/api/chunks/transcriptions", async (c) => {
   try {
     const sessionId = c.req.query("sessionId");
-    
+
     if (!sessionId) {
       return c.json({ error: "Missing sessionId" }, 400);
     }
-    
+
     // Fetch all transcriptions for session ordered by uploaded time
     const results = await db.query.chunks.findMany({
       where: eq(chunks.sessionId, sessionId),
@@ -155,7 +183,7 @@ app.get("/api/chunks/transcriptions", async (c) => {
         uploadedAt: true
       }
     });
-    
+
     return c.json({ transcriptions: results });
   } catch (error) {
     console.error("Transcriptions fetch error:", error);
@@ -169,20 +197,45 @@ app.delete("/api/chunks/transcriptions/:id", async (c) => {
     if (!id) {
       return c.json({ error: "Missing chunk ID" }, 400);
     }
-    
+
     // Delete from DB
     await db.delete(chunks).where(eq(chunks.id, id));
-    
+
     // Delete physical file if it exists
     const filePath = join(UPLOADS_DIR, `${id}.wav`);
     if (existsSync(filePath)) {
       await unlink(filePath);
     }
-    
+
     return c.json({ success: true });
   } catch (error) {
     console.error("Delete transcription error:", error);
     return c.json({ error: "Delete failed" }, 500);
+  }
+});
+
+app.delete("/api/chunks/transcriptions/session/:sessionId", async (c) => {
+  try {
+    const sessionId = c.req.param("sessionId");
+
+    const records = await db.query.chunks.findMany({
+      where: eq(chunks.sessionId, sessionId),
+      columns: { id: true }
+    });
+
+    await db.delete(chunks).where(eq(chunks.sessionId, sessionId));
+
+    for (const record of records) {
+      const filePath = join(UPLOADS_DIR, `${record.id}.wav`);
+      if (existsSync(filePath)) {
+        await unlink(filePath);
+      }
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Clear session error:", error);
+    return c.json({ error: "Clear failed" }, 500);
   }
 });
 

@@ -40,17 +40,22 @@ export function useTranscriptions(sessionId: string) {
   }, [sessionId]);
 
   const deleteTranscription = async (id: string) => {
-    // Optimistic UI update
     setTranscriptions((prev) => prev.filter((t) => t.id !== id));
-    
     try {
-      await fetch(`http://localhost:3000/api/chunks/transcriptions/${id}`, {
-        method: "DELETE",
-      });
+      await fetch(`http://localhost:3000/api/chunks/transcriptions/${id}`, { method: "DELETE" });
     } catch (err) {
-      console.error("Failed to delete transcription", err);
+      console.error(err);
     }
   };
 
-  return { transcriptions, deleteTranscription };
+  const clearTranscriptions = async () => {
+    setTranscriptions([]);
+    try {
+      await fetch(`http://localhost:3000/api/chunks/transcriptions/session/${sessionId}`, { method: "DELETE" });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return { transcriptions, deleteTranscription, clearTranscriptions };
 }

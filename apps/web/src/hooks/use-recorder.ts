@@ -129,10 +129,18 @@ export function useRecorder(options: UseRecorderOptions = {}) {
 
     setStatus("requesting")
     try {
+      const audioOptions: MediaTrackConstraints = {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      }
+
+      if (deviceId) {
+        audioOptions.deviceId = { exact: deviceId }
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: deviceId
-          ? { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true }
-          : { echoCancellation: true, noiseSuppression: true },
+        audio: audioOptions,
       })
 
       const audioCtx = new AudioContext()
