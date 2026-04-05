@@ -36,7 +36,8 @@ export function useUploader() {
                 formData.append("sessionId", "session-current"); // Optional
                 formData.append("file", file);
                 
-                const response = await fetch("http://localhost:3000/api/chunks/upload", {
+                const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+                const response = await fetch(`${baseUrl}/api/chunks/upload`, {
                   method: "POST",
                   body: formData,
                 });
