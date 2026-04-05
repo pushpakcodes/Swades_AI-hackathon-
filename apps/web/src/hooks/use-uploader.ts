@@ -20,7 +20,7 @@ export function useUploader() {
         let pending = 0;
         const uploadTasks = [];
         
-        for await (const [name, handle] of uploadDir.entries()) {
+        for await (const [name, handle] of (uploadDir as any).entries()) {
           if (handle.kind === "file") {
             pending++;
             uploadTasks.push(async () => {
